@@ -39,7 +39,7 @@ def main():
     setup(name="mdseqpos",
           version="1.01",
           description="Motif finding tools",
-          author='Len Taing, Ying Lei, Cliff Myers, Tao Liu, Ma Jian, et al',
+          author='Len Taing, Ying Lei, Cliff Meyer, Tao Liu, Ma Jian, et al',
           author_email='lentaing@jimmy.harvard.edu',
           url='http://liulab.dfci.harvard.edu/ap',
           package_dir={'mdseqpos' : 'lib'},

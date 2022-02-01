@@ -24,6 +24,7 @@ from mdseqpos.chipregions import ChipRegions
 import mdseqpos.settings as settings
 import mdseqpos.bayesian_motif_comp as bmc
 import mdseqpos.pwmclus_motif_comp as pmc
+import mdseqpos.pwm_logo as logo
 
 _DEBUG = False
 
@@ -168,7 +169,7 @@ def save_to_html(output_dir, motifList, motifDists):
 
     #END save_to_html
 
-def save_to_html_plain(output_dir, motifList, distCutoff):   
+def save_to_html_plain(output_dir, motifList, distCutoff, html_filename='mdseqpos_index.html'):   
     # > dir(motifList[0])
     # ['_ATTRIBUTES', '__doc__', '__init__', '__module__', '__str__', '_results_fields', 
     # '_validpssm', 'antisense', 'dbd', 'entrezs', 'equals', 'factors', 'from_dict', 
@@ -205,23 +206,39 @@ def save_to_html_plain(output_dir, motifList, distCutoff):
         os.mkdir(seqLogoFolder)
     
     #draw seqLogo to png
-    rfile = os.path.join(seqLogoFolder, 'draw_seqLogo.r')
-    rscript = open(rfile, 'w')
-    rscript.write('setwd("%s")\n' %os.path.abspath(seqLogoFolder))
-    rscript.write('library("seqLogo")\n')
+    #rfile = os.path.join(seqLogoFolder, 'draw_seqLogo.r')
+    #rscript = open(rfile, 'w')
+    #rscript.write('setwd("%s")\n' %os.path.abspath(seqLogoFolder))
+    #rscript.write('library("seqLogo")\n')
+    #for motif in mlist:
+    #    # create png for both seqlogo and reversed seqlogo.
+    #    for mid, pssm in ((motif.id, motif.seqpos_results['pssm']), (motif.id + '_rev', motif.seqpos_results['pssm_rev'])):
+    #        t1 = ['c(%s)' % ','.join([str(t2) for t2 in t]) for t in pssm]
+    #        t2 = 'data<-cbind(%s)\n' % ','.join(t1)
+    #        rscript.write('png("%s.png", width=660, height=300)\n' %mid)
+    #        rscript.write(t2)
+    #        rscript.write('seqLogo(as.matrix(data))\n')
+    #        rscript.write('dev.off()\n\n')
+    #rscript.close()
+    #cmd = 'Rscript %s' %rfile
+    #os.system(cmd)
+ 
     for motif in mlist:
-        # create png for both seqlogo and reversed seqlogo.
-        for mid, pssm in ((motif.id, motif.seqpos_results['pssm']), (motif.id + '_rev', motif.seqpos_results['pssm_rev'])):
-            t1 = ['c(%s)' % ','.join([str(t2) for t2 in t]) for t in pssm]
-            t2 = 'data<-cbind(%s)\n' % ','.join(t1)
-            rscript.write('png("%s.png", width=660, height=300)\n' %mid)
-            rscript.write(t2)
-            rscript.write('seqLogo(as.matrix(data))\n')
-            rscript.write('dev.off()\n\n')
-    rscript.close()
-    cmd = 'Rscript %s' %rfile
-    os.system(cmd)
-        
+        # create png for seqlogo
+        motif_id = motif.id
+        logo_filename=os.path.join(seqLogoFolder,f'{motif_id}.png')
+        logo.plot_motif_info(
+            motif.seqpos_results['pssm'],
+            filename=logo_filename
+        )
+        # create png for reverse complement seqlogo.
+        motif_id = f'{motif.id}_rev'
+        logo_filename=os.path.join(seqLogoFolder,f'{motif_id}.png')
+        logo.plot_motif_info(
+            motif.seqpos_results['pssm_rev'],
+            filename=logo_filename
+        )
+ 
     #create each motif's single page
     motifFolder = os.path.join(output_dir, 'motif')
     if not os.path.exists(motifFolder):
@@ -264,7 +281,8 @@ def save_to_html_plain(output_dir, motifList, distCutoff):
     
     #create table page and home page.
     render_to_file('table.html', {'motifs': m_collapse}, os.path.join(output_dir, 'table.html'))
-    render_to_file('mdseqpos_index.html', {}, os.path.join(output_dir, 'mdseqpos_index.html'))
+    #render_to_file('mdseqpos_index.html', {}, os.path.join(output_dir, 'mdseqpos_index.html'))
+    render_to_file('mdseqpos_index.html', {}, os.path.join(output_dir, html_filename))
 
 def render_to_file(template_html, render_dict, filen):
     template_d = os.path.join(settings.DEPLOY_DIR, 'template')
@@ -346,6 +364,9 @@ def main():
                       help="maximum number of motifs to report, (default: 0, i.e. no max)")
     parser.add_option('-O', '--output-directory', default="results", 
                       help="output directory name (default: results)")
+    parser.add_option('--htmlfile', default="mdseqpos_index.html", 
+                      help="html index file name (default: mdseqpos_index.html)")
+
     
     #parse the command line options
     (opts, args) = parser.parse_args(sys.argv)
@@ -405,7 +426,8 @@ def main():
 
     #dists = calc_motif_dist_pcc(sig_motifs)
     #save_to_html(output_dir, sig_motifs, dists)
-    save_to_html_plain(output_dir, sig_motifs, opts.hcluster)
+    #save_to_html_plain(output_dir, sig_motifs, opts.hcluster)
+    save_to_html_plain(output_dir, sig_motifs, opts.hcluster, html_filename=opts.htmlfile)
 
     json_list = [t.to_json() for t in sig_motifs]
     jsonf = open(os.path.join(output_dir, 'motif_list.json'),'w')
