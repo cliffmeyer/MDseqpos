@@ -24,7 +24,6 @@ from mdseqpos.chipregions import ChipRegions
 import mdseqpos.settings as settings
 import mdseqpos.bayesian_motif_comp as bmc
 import mdseqpos.pwmclus_motif_comp as pmc
-import mdseqpos.pwm_logo as logo
 
 _DEBUG = False
 
@@ -169,7 +168,8 @@ def save_to_html(output_dir, motifList, motifDists):
 
     #END save_to_html
 
-def save_to_html_plain(output_dir, motifList, distCutoff, html_filename='mdseqpos_index.html'):   
+
+def reformat_and_save_to_json(output_dir, motifList, distCutoff, filename='', version=''):   
     # > dir(motifList[0])
     # ['_ATTRIBUTES', '__doc__', '__init__', '__module__', '__str__', '_results_fields', 
     # '_validpssm', 'antisense', 'dbd', 'entrezs', 'equals', 'factors', 'from_dict', 
@@ -200,69 +200,12 @@ def save_to_html_plain(output_dir, motifList, distCutoff, html_filename='mdseqpo
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     
-    #create seqLogo by run Rscript.
-    seqLogoFolder = os.path.join(output_dir, 'seqLogo')
-    if not os.path.exists(seqLogoFolder):
-        os.mkdir(seqLogoFolder)
-    
-    #draw seqLogo to png
-    #rfile = os.path.join(seqLogoFolder, 'draw_seqLogo.r')
-    #rscript = open(rfile, 'w')
-    #rscript.write('setwd("%s")\n' %os.path.abspath(seqLogoFolder))
-    #rscript.write('library("seqLogo")\n')
-    #for motif in mlist:
-    #    # create png for both seqlogo and reversed seqlogo.
-    #    for mid, pssm in ((motif.id, motif.seqpos_results['pssm']), (motif.id + '_rev', motif.seqpos_results['pssm_rev'])):
-    #        t1 = ['c(%s)' % ','.join([str(t2) for t2 in t]) for t in pssm]
-    #        t2 = 'data<-cbind(%s)\n' % ','.join(t1)
-    #        rscript.write('png("%s.png", width=660, height=300)\n' %mid)
-    #        rscript.write(t2)
-    #        rscript.write('seqLogo(as.matrix(data))\n')
-    #        rscript.write('dev.off()\n\n')
-    #rscript.close()
-    #cmd = 'Rscript %s' %rfile
-    #os.system(cmd)
- 
-    for motif in mlist:
-        # create png for seqlogo
-        motif_id = motif.id
-        logo_filename=os.path.join(seqLogoFolder,f'{motif_id}.png')
-        logo.plot_motif_info(
-            motif.seqpos_results['pssm'],
-            filename=logo_filename
-        )
-        # create png for reverse complement seqlogo.
-        motif_id = f'{motif.id}_rev'
-        logo_filename=os.path.join(seqLogoFolder,f'{motif_id}.png')
-        logo.plot_motif_info(
-            motif.seqpos_results['pssm_rev'],
-            filename=logo_filename
-        )
- 
-    #create each motif's single page
-    motifFolder = os.path.join(output_dir, 'motif')
-    if not os.path.exists(motifFolder):
-        os.mkdir(motifFolder)
-    pssmFolder = os.path.join(output_dir, 'pssm')
-    if not os.path.exists(pssmFolder):
-        os.mkdir(pssmFolder)
-    for motif in mlist:
-        render_to_file('single_motif.html', {'motif': motif}, os.path.join(motifFolder, motif.id + '.html'))
-        render_to_file('single_pssm.html', {'motif': motif}, os.path.join(pssmFolder, motif.id + '.html'))
-    
-    #create hit seq pages
-    #hitseqFolder = os.path.join(output_dir, 'hitseq')
-    #if not os.path.exists(hitseqFolder):
-    #    os.mkdir(hitseqFolder)
-    #for arg in args:
-    #    outf = open(os.path.join(hitseqFolder, arg['id']+'.txt'), 'w')
-    #    outf.writelines([t+'\n' for t in arg['hitseq']])
-    #    outf.close()
-    
     #collapse motifs
     flat_clusters = pmc.motif_hcluster2(mlist, distCutoff)
     flat_clusters.sort(key = lambda x: min([t.getzscore() for t in x]))
-    
+   
+ 
+    print( 'Got here 1!',filename,version)
     m_collapse = []
     for c in flat_clusters:
         c.sort(key=lambda x:x.getzscore())
@@ -270,19 +213,27 @@ def save_to_html_plain(output_dir, motifList, distCutoff, html_filename='mdseqpo
         
         m_collapse[-1].similar_motifs = [m_collapse[-1]] #also put self into similarity_motifs list.
         for m in c:
-            similarity_score = pmc.similarity(m.seqpos_results['pssm'], m_collapse[-1].seqpos_results['pssm'])[0]
+            similarity_score,shift_pos,is_reversed = pmc.similarity(m.seqpos_results['pssm'], m_collapse[-1].seqpos_results['pssm'])
+
+            if is_reversed:
+                m.seqpos_results['pssm_rev'] = m.seqpos_results['pssm']
+                m.seqpos_results['pssm'] = reverse_pssm( m.seqpos_results['pssm'] )
+
             m.similarity_score = round(similarity_score, 3)
             m_collapse[-1].similar_motifs.append(m)
 
+    print( 'Got here 2!',filename,version)
     for i in range(len(m_collapse)):
         motif = m_collapse[i]
         motif.collapse_num = len(motif.similar_motifs)
         motif.class_id = i + 1
     
     #create table page and home page.
-    render_to_file('table.html', {'motifs': m_collapse}, os.path.join(output_dir, 'table.html'))
+    #render_to_file('table.html', {'motifs': m_collapse}, os.path.join(output_dir, 'table.html'))
     #render_to_file('mdseqpos_index.html', {}, os.path.join(output_dir, 'mdseqpos_index.html'))
-    render_to_file('mdseqpos_index.html', {}, os.path.join(output_dir, html_filename))
+    print( 'Got here 3!',filename,version)
+    render_to_json( m_collapse, filename, version=version)
+ 
 
 def render_to_file(template_html, render_dict, filen):
     template_d = os.path.join(settings.DEPLOY_DIR, 'template')
@@ -292,6 +243,50 @@ def render_to_file(template_html, render_dict, filen):
     outf.write(template.render(render_dict))
     outf.close()
     template_f.close()
+
+
+def round_float(val,prec=3):
+    return float(f'%.{prec}f' % val)
+
+
+def round_float_matrix(X):
+    """ 
+    Round to  decimal places.
+    """ 
+    new_X = [[round_float(val) for val in row] for row in X]
+    return new_X
+
+
+def render_to_json(motifs, filen, version=""):
+    l = []
+    for motif in motifs:
+        for e in motif.similar_motifs:
+            if hasattr(e,'similarity_score'):
+                similarity_score = e.similarity_score
+            else:
+                similarity_score = 1
+
+            pssm = round_float_matrix(e.seqpos_results['pssm'])
+
+            d = {
+                "DNA_binding_domain": e.dbd,
+                "cluster_id": motif.class_id,
+                "cutoff": round_float(e.getcutoff()),
+                "factor": '|'.join(e.factors),
+                "hits": e.getnumhits(),
+                "mean_pos": round_float(e.getmeanposition()),
+                "motif_id": e.id,
+                "pwm": pssm,
+                "similarity": round_float(similarity_score), # TODO check vs html
+                "ten_neg_log_p": round_float(e.getpvalue()),
+                "zscore": round_float(e.getzscore())
+            }
+            l.append(d)
+    
+    print('Got here 4!',l)
+    with open( filen, 'w' ) as fp:
+        json.dump({"motifs":l,"version":version},fp,indent=2)
+
 
 def calc_motif_dist(motifList):
     """Given a list of motifs, returns a dictionary of the distances
@@ -364,8 +359,10 @@ def main():
                       help="maximum number of motifs to report, (default: 0, i.e. no max)")
     parser.add_option('-O', '--output-directory', default="results", 
                       help="output directory name (default: results)")
-    parser.add_option('--htmlfile', default="mdseqpos_index.html", 
-                      help="html index file name (default: mdseqpos_index.html)")
+    parser.add_option('--json', default="test.json", 
+                      help="name of output json file (default: test.json)")
+    parser.add_option('--version', default="CistromeDB_v2.0", 
+                      help="Version of analysis and motif set, (not same as version of this MDSeqPos)")
 
     
     #parse the command line options
@@ -426,14 +423,10 @@ def main():
 
     #dists = calc_motif_dist_pcc(sig_motifs)
     #save_to_html(output_dir, sig_motifs, dists)
-    #save_to_html_plain(output_dir, sig_motifs, opts.hcluster)
-    save_to_html_plain(output_dir, sig_motifs, opts.hcluster, html_filename=opts.htmlfile)
 
-    json_list = [t.to_json() for t in sig_motifs]
-    jsonf = open(os.path.join(output_dir, 'motif_list.json'),'w')
-    for js in json_list:
-        jsonf.write(js +'\n')
-    jsonf.close()
+    print("reformat and save to json...",opts.json,opts.version,output_dir)
+    reformat_and_save_to_json(output_dir, sig_motifs, opts.hcluster, filename=opts.json, version=opts.version )
+
 
 if __name__ == '__main__':
     main()
